@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DevQuiz — Quiz Time!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #05050f; --accent: #00ffe0; --accent2: #ff2d78; --accent3: #ffe600;
+      --card: rgba(255,255,255,0.04); --border: rgba(0,255,224,0.15);
+      --text: #f0f0f0; --muted: #888; --correct: #00ff88; --wrong: #ff2d78;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; min-height: 100vh; overflow-x: hidden; }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(0,255,224,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,224,0.03) 1px, transparent 1px);
+      background-size: 40px 40px; z-index: 0;
+    }
+    .progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.5s ease; z-index: 200; }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 16px 40px; display: flex; justify-content: space-between; align-items: center;
+      background: rgba(5,5,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+    }
+    .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.2rem; }
+    .logo span { color: var(--accent); }
+    .nav-meta { display: flex; align-items: center; gap: 20px; font-size: 0.75rem; color: var(--muted); }
+    .timer-circle {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: conic-gradient(var(--accent) var(--pct, 100%), rgba(0,255,224,0.1) 0%);
+      display: flex; align-items: center; justify-content: center; transition: background 0.3s;
+    }
+    .timer-inner {
+      width: 34px; height: 34px; background: var(--bg); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem; color: var(--accent);
+    }
+    .timer-circle.danger { background: conic-gradient(var(--accent2) var(--pct, 100%), rgba(255,45,120,0.1) 0%); }
+    .timer-circle.danger .timer-inner { color: var(--accent2); }
+    .page { position: relative; z-index: 1; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 100px 24px 60px; }
+    .quiz-wrap { width: 100%; max-width: 720px; }
+    .loading { text-align: center; padding: 80px 0; }
+    .loader { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 24px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-family: 'Syne', sans-serif; font-size: 1.1rem; color: var(--muted); }
+    .loading-topic { color: var(--accent); font-size: 1.3rem; font-weight: 700; margin-top: 8px; }
+    .q-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 40px;
+      position: relative; overflow: hidden; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .q-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-40px); } }
+    .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+    .q-count { font-size: 0.7rem; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+    .q-difficulty { font-size: 0.65rem; padding: 4px 12px; border-radius: 20px; letter-spacing: 1px; text-transform: uppercase; }
+    .q-difficulty.easy { border: 1px solid #00ff88; color: #00ff88; }
+    .q-difficulty.medium { border: 1px solid var(--accent3); color: var(--accent3); }
+    .q-difficulty.hard { border: 1px solid var(--accent2); color: var(--accent2); }
+    .q-text { font-family: 'Syne', sans-serif; font-size: clamp(1rem, 2.5vw, 1.3rem); font-weight: 700; line-height: 1.5; margin-bottom: 32px; }
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .option {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+      padding: 16px 20px; cursor: pointer; font-family: 'Space Mono', monospace; font-size: 0.8rem;
+      color: var(--text); text-align: left; transition: all 0.25s ease; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .option:hover:not(:disabled) { border-color: var(--accent); background: rgba(0,255,224,0.06); transform: translateY(-2px); }
+    .option:disabled { cursor: default; }
+    .option.correct { border-color: var(--correct); background: rgba(0,255,136,0.1); color: var(--correct); animation: flashGreen 0.4s ease; }
+    .option.wrong { border-color: var(--wrong); background: rgba(255,45,120,0.1); color: var(--wrong); animation: flashRed 0.4s ease; }
+    .option.reveal-correct { border-color: var(--correct); background: rgba(0,255,136,0.06); color: var(--correct); }
+    @keyframes flashGreen { 0%{transform:scale(1)} 50%{transform:scale(1.04);box-shadow:0 0 30px rgba(0,255,136,0.4)} 100%{transform:scale(1)} }
+    @keyframes flashRed { 0%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} 100%{transform:translateX(0)} }
+    .option-letter { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,0.06); font-size: 0.65rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .q-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
+    .score-live { font-size: 0.75rem; color: var(--muted); }
+    .score-live span { color: var(--correct); font-weight: 700; }
+    .next-btn {
+      padding: 12px 28px; background: linear-gradient(135deg, var(--accent), #00b8a0); color: #05050f;
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.85rem; border: none;
+      border-radius: 8px; cursor: pointer; display: none; transition: all 0.3s; letter-spacing: 1px;
+    }
+    .next-btn.visible { display: block; animation: fadeIn 0.3s ease; }
+    .next-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,255,224,0.3); }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .score-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 24px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.4s ease; }
+    .dot.answered { background: var(--muted); }
+    .dot.correct { background: var(--correct); box-shadow: 0 0 8px rgba(0,255,136,0.6); }
+    .dot.wrong { background: var(--wrong); }
+    footer { position: relative; z-index: 1; text-align: center; padding: 16px; border-top: 1px solid var(--border); font-size: 0.65rem; color: var(--muted); }
+    footer span { color: var(--accent2); } footer a { color: var(--accent); text-decoration: none; }
+    @media (max-width: 600px) { .options-grid { grid-template-columns: 1fr; } nav { padding: 12px 20px; } }
+  </style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<nav>
+  <div class="logo">Dev<span>Quiz</span></div>
+  <div class="nav-meta">
+    <div id="topicLabel" style="color:var(--accent);font-weight:700;">—</div>
+    <div class="timer-circle" id="timerCircle" style="--pct:100%">
+      <div class="timer-inner" id="timerNum">30</div>
+    </div>
+  </div>
+</nav>
+<div class="page">
+  <div class="quiz-wrap">
+    <div class="score-dots" id="scoreDots"></div>
+    <div id="quizContent"></div>
+  </div>
+</div>
+<footer>Built with <span>♥</span> by <a href="#">Sagar</a> • DevQuiz © 2026 • Questions via <a href="https://opentdb.com" target="_blank">Open Trivia DB</a></footer>
+<script>
+  const name = localStorage.getItem('dq_name') || 'Player';
+  const email = localStorage.getItem('dq_email') || '';
+  const topic = JSON.parse(localStorage.getItem('dq_topic') || 'null');
+  if (!topic || !name) window.location.href = '../index.html';
+
+  let questions = [], current = 0, score = 0, answers = [];
+  let timer = null, timeLeft = 30, answered = false;
+  const TOTAL_TIME = 30;
+  const startTime = Date.now();
+
+  document.getElementById('topicLabel').textContent = (topic?.icon||'') + ' ' + (topic?.name||'');
+
+  function buildDots() {
+    const wrap = document.getElementById('scoreDots');
+    wrap.innerHTML = '';
+    for (let i = 0; i < 10; i++) {
+      const d = document.createElement('div');
+      d.className = 'dot'; d.id = 'dot' + i;
+      wrap.appendChild(d);
+    }
+  }
+
+  async function fetchQuestions() {
+    showLoading();
+    try {
+      const res = await fetch('https://opentdb.com/api.php?amount=10&category=18&type=multiple');
+      const data = await res.json();
+      if (data.response_code === 0 && data.results.length > 0) {
+        questions = data.results.map(q => ({
+          question: decodeHTML(q.question),
+          correct: decodeHTML(q.correct_answer),
+          options: shuffle([q.correct_answer, ...q.incorrect_answers].map(decodeHTML)),
+          difficulty: q.difficulty
+        }));
+      } else {
+        questions = getLocalQuestions(topic?.id || 'javascript');
+      }
+    } catch(e) {
+      questions = getLocalQuestions(topic?.id || 'javascript');
+    }
+    buildDots();
+    showQuestion();
+  }
+
+  function decodeHTML(str) {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = str; return txt.value;
+  }
+
+  function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+
+  function showLoading() {
+    document.getElementById('quizContent').innerHTML = `
+      <div class="loading">
+        <div class="loader"></div>
+        <div class="loading-text">Loading questions for</div>
+        <div class="loading-topic">${topic?.icon||''} ${topic?.name||''}</div>
+      </div>`;
+  }
+
+  function showQuestion() {
+    if (current >= questions.length) { finishQuiz(); return; }
+    answered = false;
+    const q = questions[current];
+    document.getElementById('progressBar').style.width = (current / questions.length * 100) + '%';
+    updateDot(current, 'answered');
+    const letters = ['A','B','C','D'];
+    document.getElementById('quizContent').innerHTML = `
+      <div class="q-card" id="qCard">
+        <div class="q-header">
+          <div class="q-count">Question ${current+1} / ${questions.length}</div>
+          <div class="q-difficulty ${q.difficulty}">${q.difficulty}</div>
+        </div>
+        <div class="q-text">${q.question}</div>
+        <div class="options-grid" id="optionsGrid">
+          ${q.options.map((opt, i) => `
+            <button class="option" data-opt="${encodeURIComponent(opt)}" onclick="selectOption(this)">
+              <span class="option-letter">${letters[i]}</span>${opt}
+            </button>`).join('')}
+        </div>
+        <div class="q-footer">
+          <div class="score-live">Score: <span>${score}</span> / ${current}</div>
+          <button class="next-btn" id="nextBtn" onclick="nextQuestion()">
+            ${current === questions.length-1 ? 'See Results 🏆' : 'Next →'}
+          </button>
+        </div>
+      </div>`;
+    startTimer();
+  }
+
+  function startTimer() {
+    clearInterval(timer);
+    timeLeft = TOTAL_TIME;
+    updateTimerUI();
+    timer = setInterval(() => {
+      timeLeft--;
+      updateTimerUI();
+      if (timeLeft <= 0) { clearInterval(timer); if (!answered) timeUp(); }
+    }, 1000);
+  }
+
+  function updateTimerUI() {
+    const pct = (timeLeft / TOTAL_TIME) * 100;
+    const circle = document.getElementById('timerCircle');
+    const num = document.getElementById('timerNum');
+    if (!circle || !num) return;
+    circle.style.setProperty('--pct', pct + '%');
+    num.textContent = timeLeft;
+    timeLeft <= 10 ? circle.classList.add('danger') : circle.classList.remove('danger');
+  }
+
+  function timeUp() {
+    answered = true;
+    const q = questions[current];
+    answers.push({ question: q.question, selected: 'TIME OUT ⏱️', correct: q.correct, isCorrect: false });
+    updateDot(current, 'wrong');
+    document.querySelectorAll('.option').forEach(b => {
+      b.disabled = true;
+      if (decodeURIComponent(b.dataset.opt) === q.correct) b.classList.add('reveal-correct');
+    });
+    showNextBtn();
+  }
+
+  function selectOption(btn) {
+    if (answered) return;
+    answered = true;
+    clearInterval(timer);
+    const selected = decodeURIComponent(btn.dataset.opt);
+    const q = questions[current];
+    const isCorrect = selected === q.correct;
+    answers.push({ question: q.question, selected, correct: q.correct, isCorrect });
+    document.querySelectorAll('.option').forEach(b => b.disabled = true);
+    if (isCorrect) { score++; btn.classList.add('correct'); updateDot(current, 'correct'); }
+    else { btn.classList.add('wrong'); updateDot(current, 'wrong'); }
+    document.querySelectorAll('.option').forEach(b => {
+      if (decodeURIComponent(b.dataset.opt) === q.correct && !b.classList.contains('wrong'))
+        b.classList.add('reveal-correct');
+    });
+    showNextBtn();
+  }
+
+  function showNextBtn() {
+    const btn = document.getElementById('nextBtn');
+    if (btn) btn.classList.add('visible');
+  }
+
+  function updateDot(idx, state) {
+    const dot = document.getElementById('dot' + idx);
+    if (dot) { dot.classList.remove('answered','correct','wrong'); dot.classList.add(state); }
+  }
+
+  function nextQuestion() {
+    current++;
+    const card = document.getElementById('qCard');
+    if (card) { card.style.animation = 'slideOut 0.3s ease forwards'; setTimeout(() => showQuestion(), 300); }
+    else showQuestion();
+  }
+
+  async function finishQuiz() {
+    clearInterval(timer);
+    document.getElementById('progressBar').style.width = '100%';
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    const timeStr = `${Math.floor(elapsed/60)}m ${elapsed%60}s`;
+    const result = { name, email, topic: topic?.name, topicIcon: topic?.icon, score, total: questions.length, time: timeStr, date: new Date().toLocaleString(), answers };
+    localStorage.setItem('dq_result', JSON.stringify(result));
+    await saveToSheets(result);
+    window.location.href = 'result.html';
+  }
+
+  async function saveToSheets(result) {
+    // PASTE YOUR GOOGLE APPS SCRIPT URL BELOW (see SETUP steps)
+    const SHEETS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+    if (SHEETS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return;
+    try {
+      await fetch(SHEETS_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: result.name, email: result.email, topic: result.topic,
+          score: result.score + '/' + result.total, percentage: Math.round((result.score/result.total)*100)+'%',
+          time: result.time, date: result.date,
+          answers: result.answers.map((a,i) => `Q${i+1}: ${a.question} | Yours: ${a.selected} | Correct: ${a.correct}`).join(' || ')
+        })
+      });
+    } catch(e) { console.log('Sheets save failed:', e); }
+  }
+
+  function getLocalQuestions(id) {
+    const all = {
+      javascript: [
+        {question:"Which keyword declares a block-scoped variable?",correct:"let",options:["let","var","define","block"],difficulty:"easy"},
+        {question:"What does '===' check in JavaScript?",correct:"Value and type equality",options:["Value and type equality","Only value equality","Reference equality","Type only"],difficulty:"easy"},
+        {question:"What does JSON.parse() do?",correct:"Converts JSON string to object",options:["Converts JSON string to object","Converts object to JSON","Parses HTML","Reads a file"],difficulty:"easy"},
+        {question:"What is a closure?",correct:"A function with access to its outer scope",options:["A function with access to its outer scope","A sealed object","A private class","A loop pattern"],difficulty:"medium"},
+        {question:"What does the spread operator (...) do?",correct:"Expands an iterable into elements",options:["Expands an iterable into elements","Merges functions","Creates deep copy","Declares rest params"],difficulty:"medium"},
+        {question:"What is typeof null in JavaScript?",correct:"object",options:["object","null","undefined","string"],difficulty:"hard"},
+        {question:"Which method filters array elements?",correct:"filter()",options:["filter()","find()","map()","reduce()"],difficulty:"easy"},
+        {question:"What does async/await do?",correct:"Simplifies working with Promises",options:["Simplifies working with Promises","Makes code synchronous","Creates web workers","Handles errors"],difficulty:"medium"},
+        {question:"What is event bubbling?",correct:"Events propagate from child to parent",options:["Events propagate from child to parent","Events fire multiple times","An animation","DOM cloning"],difficulty:"medium"},
+        {question:"What does Array.reduce() do?",correct:"Reduces array to a single value",options:["Reduces array to a single value","Removes items","Sorts items","Finds minimum"],difficulty:"medium"}
+      ],
+      html: [
+        {question:"What does HTML stand for?",correct:"HyperText Markup Language",options:["HyperText Markup Language","HyperText Machine Language","HighText Markup Language","HyperTransfer Markup Language"],difficulty:"easy"},
+        {question:"Which tag creates the largest heading?",correct:"<h1>",options:["<h1>","<h6>","<heading>","<head>"],difficulty:"easy"},
+        {question:"What attribute makes a field required?",correct:"required",options:["required","mandatory","validate","must"],difficulty:"easy"},
+        {question:"Which element defines navigation?",correct:"<nav>",options:["<nav>","<navigation>","<links>","<menu>"],difficulty:"medium"},
+        {question:"What does the alt attribute do?",correct:"Provides alternative text for images",options:["Provides alternative text for images","Sets alignment","Defines altitude","Changes opacity"],difficulty:"easy"},
+        {question:"Which element is for standalone content?",correct:"<article>",options:["<article>","<section>","<div>","<content>"],difficulty:"medium"},
+        {question:"How do you comment in HTML?",correct:"<!-- comment -->",options:["<!-- comment -->","// comment","/* comment */","# comment"],difficulty:"easy"},
+        {question:"Which input type is for email in HTML5?",correct:"email",options:["email","mail","e-mail","gmail"],difficulty:"easy"},
+        {question:"What does <figure> represent?",correct:"Self-contained content like images",options:["Self-contained content like images","Only charts","A shape","A form container"],difficulty:"medium"},
+        {question:"Which attribute gives a unique ID?",correct:"id",options:["id","class","name","key"],difficulty:"easy"}
+      ],
+      css: [
+        {question:"What does CSS stand for?",correct:"Cascading Style Sheets",options:["Cascading Style Sheets","Creative Style Sheets","Computer Style Sheets","Colorful Style Sheets"],difficulty:"easy"},
+        {question:"Which property controls space between flex items?",correct:"gap",options:["gap","spacing","margin","padding"],difficulty:"medium"},
+        {question:"What is the default position value?",correct:"static",options:["static","relative","absolute","fixed"],difficulty:"easy"},
+        {question:"Which unit is relative to viewport width?",correct:"vw",options:["vw","vh","em","rem"],difficulty:"easy"},
+        {question:"What does z-index control?",correct:"Stacking order of elements",options:["Stacking order of elements","Zoom level","Height","Opacity"],difficulty:"easy"},
+        {question:"Which flexbox property aligns items on cross axis?",correct:"align-items",options:["align-items","justify-content","align-content","flex-align"],difficulty:"medium"},
+        {question:"What pseudo-class targets the first child?",correct:":first-child",options:[":first-child",":first",":first-element",":child-first"],difficulty:"easy"},
+        {question:"What does rem represent?",correct:"Root element's font size",options:["Root element's font size","Relative element margin","Responsive em","Rendered em"],difficulty:"medium"},
+        {question:"Which property creates a grid?",correct:"display: grid",options:["display: grid","grid: true","layout: grid","display: flex-grid"],difficulty:"easy"},
+        {question:"What does box-sizing: border-box do?",correct:"Includes padding & border in width",options:["Includes padding & border in width","Removes padding","Sets border radius","Fixes overflow"],difficulty:"medium"}
+      ]
+    };
+    const fallback = all.javascript;
+    const set = all[id] || fallback;
+    return set.map(q => ({...q, options: shuffle(q.options)}));
+  }
+
+  fetchQuestions();
+</script>
+</body>
+</html>

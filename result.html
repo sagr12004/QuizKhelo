@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DevQuiz — Your Results!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <style>
+    :root {
+      --bg: #05050f; --accent: #00ffe0; --accent2: #ff2d78; --accent3: #ffe600;
+      --card: rgba(255,255,255,0.04); --border: rgba(0,255,224,0.15);
+      --text: #f0f0f0; --muted: #888; --correct: #00ff88; --wrong: #ff2d78;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; min-height: 100vh; overflow-x: hidden; }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(0,255,224,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,224,0.03) 1px, transparent 1px);
+      background-size: 40px 40px; z-index: 0;
+    }
+    .orb { position: fixed; border-radius: 50%; filter: blur(100px); opacity: 0.15; z-index: 0; pointer-events: none; }
+    .orb1 { width: 500px; height: 500px; background: var(--correct); top: -200px; left: -100px; animation: floatOrb 10s ease-in-out infinite; }
+    .orb2 { width: 400px; height: 400px; background: var(--accent2); bottom: -150px; right: -100px; animation: floatOrb 12s ease-in-out infinite reverse; }
+    @keyframes floatOrb { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,-50px)} }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 20px 48px; display: flex; justify-content: space-between; align-items: center;
+      background: rgba(5,5,15,0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+    }
+    .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.4rem; }
+    .logo span { color: var(--accent); }
+    .page { position: relative; z-index: 1; padding: 100px 24px 80px; max-width: 900px; margin: 0 auto; }
+    .result-hero { text-align: center; padding: 60px 0 48px; opacity: 0; animation: fadeUp 0.6s ease forwards 0.2s; }
+    .emoji-big { font-size: 5rem; display: block; margin-bottom: 16px; animation: popIn 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards 0.4s; transform: scale(0); }
+    @keyframes popIn { to { transform: scale(1); } }
+    .result-tag { font-size: 0.7rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+    .result-name { font-family: 'Syne', sans-serif; font-size: clamp(1.4rem,4vw,2.4rem); font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+    .result-name .hl { background: linear-gradient(90deg, var(--accent), var(--correct)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .score-ring-wrap { display: flex; justify-content: center; margin: 32px 0; }
+    .score-ring { position: relative; width: 160px; height: 160px; }
+    .score-ring svg { transform: rotate(-90deg); width: 160px; height: 160px; }
+    .score-ring circle { fill: none; stroke-width: 8; }
+    .ring-bg { stroke: rgba(0,255,224,0.1); }
+    .ring-fill { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 440; stroke-dashoffset: 440; transition: stroke-dashoffset 1.5s cubic-bezier(0.4,0,0.2,1) 0.5s; }
+    .ring-fill.danger { stroke: var(--accent2); }
+    .ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .ring-score { font-family: 'Syne', sans-serif; font-size: 2.2rem; font-weight: 800; color: var(--accent); line-height: 1; }
+    .ring-score.danger { color: var(--accent2); }
+    .ring-label { font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .verdict { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; }
+    .verdict-sub { font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin: 40px 0; opacity: 0; animation: fadeUp 0.6s ease forwards 0.6s; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 16px; text-align: center; }
+    .stat-val { font-family: 'Syne', sans-serif; font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
+    .stat-val.green { color: var(--correct); } .stat-val.red { color: var(--wrong); }
+    .stat-val.blue { color: var(--accent); } .stat-val.yellow { color: var(--accent3); }
+    .stat-lbl { font-size: 0.62rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .email-status { text-align: center; margin: 0 0 32px; font-size: 0.8rem; opacity: 0; animation: fadeUp 0.6s ease forwards 0.8s; }
+    .email-badge { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 30px; border: 1px solid; font-size: 0.75rem; }
+    .email-badge.sending { border-color: var(--accent3); color: var(--accent3); animation: pulseE 1s ease-in-out infinite; }
+    .email-badge.sent { border-color: var(--correct); color: var(--correct); }
+    .email-badge.failed { border-color: var(--muted); color: var(--muted); }
+    @keyframes pulseE { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .answers-section { opacity: 0; animation: fadeUp 0.6s ease forwards 1s; }
+    .section-title { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+    .answer-item { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 12px; }
+    .answer-item.correct { border-left: 3px solid var(--correct); }
+    .answer-item.wrong { border-left: 3px solid var(--wrong); }
+    .answer-item.timeout { border-left: 3px solid var(--muted); }
+    .a-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .a-icon { font-size: 1rem; flex-shrink: 0; margin-top: 2px; }
+    .a-question { font-size: 0.82rem; line-height: 1.5; flex: 1; }
+    .a-answers { display: flex; gap: 16px; padding-left: 28px; font-size: 0.72rem; flex-wrap: wrap; }
+    .a-yours { color: var(--muted); } .a-wrong { color: var(--wrong); font-weight: 700; }
+    .a-right-ans { color: var(--correct); }
+    .actions { display: flex; gap: 16px; justify-content: center; margin-top: 48px; flex-wrap: wrap; opacity: 0; animation: fadeUp 0.6s ease forwards 1.2s; }
+    .btn-retry { padding: 14px 32px; background: linear-gradient(135deg, var(--accent), #00b8a0); color: #05050f; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.95rem; border: none; border-radius: 10px; cursor: pointer; letter-spacing: 1px; transition: all 0.3s; }
+    .btn-retry:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,255,224,0.3); }
+    .btn-home { padding: 14px 32px; background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.85rem; border-radius: 10px; cursor: pointer; transition: all 0.3s; }
+    .btn-home:hover { border-color: var(--accent); color: var(--accent); }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 200; }
+    footer { position: relative; z-index: 1; text-align: center; padding: 24px; border-top: 1px solid var(--border); font-size: 0.7rem; color: var(--muted); margin-top: 40px; }
+    footer span { color: var(--accent2); } footer a { color: var(--accent); text-decoration: none; }
+    @media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2,1fr); } nav { padding: 16px 20px; } }
+  </style>
+</head>
+<body>
+<canvas id="confetti-canvas"></canvas>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<nav>
+  <div class="logo">Dev<span>Quiz</span></div>
+  <div style="font-size:0.75rem;color:var(--muted)">Results 🏆</div>
+</nav>
+<div class="page">
+  <div class="result-hero">
+    <span class="emoji-big" id="resultEmoji">🎯</span>
+    <div class="result-tag">Quiz Complete</div>
+    <div class="result-name">Great job, <span class="hl" id="heroName">—</span>!</div>
+    <div class="score-ring-wrap">
+      <div class="score-ring">
+        <svg viewBox="0 0 160 160">
+          <circle class="ring-bg" cx="80" cy="80" r="70"/>
+          <circle class="ring-fill" id="ringFill" cx="80" cy="80" r="70"/>
+        </svg>
+        <div class="ring-text">
+          <div class="ring-score" id="ringScore">0</div>
+          <div class="ring-label">out of 10</div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict" id="verdictText">—</div>
+    <div class="verdict-sub" id="verdictSub">—</div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val green" id="statCorrect">—</div><div class="stat-lbl">Correct</div></div>
+    <div class="stat-card"><div class="stat-val red" id="statWrong">—</div><div class="stat-lbl">Wrong</div></div>
+    <div class="stat-card"><div class="stat-val blue" id="statPct">—</div><div class="stat-lbl">Accuracy</div></div>
+    <div class="stat-card"><div class="stat-val yellow" id="statTime">—</div><div class="stat-lbl">Time</div></div>
+  </div>
+  <div class="email-status">
+    <div class="email-badge sending" id="emailBadge">
+      <span>📧</span><span id="emailText">Sending results to your Gmail...</span>
+    </div>
+  </div>
+  <div class="answers-section">
+    <div class="section-title">📋 Answer Review</div>
+    <div id="answersList"></div>
+  </div>
+  <div class="actions">
+    <button class="btn-retry" onclick="retryQuiz()">🔁 Try Another Topic</button>
+    <button class="btn-home" onclick="window.location.href='../index.html'">🏠 Home</button>
+  </div>
+</div>
+<footer>Built with <span>♥</span> by <a href="#">Sagar</a> • DevQuiz © 2026</footer>
+
+<script>
+  // ─── EMAILJS CONFIG ─────────────────────────────────────────────
+  // Sign up FREE at https://emailjs.com
+  // Replace these 3 values with yours:
+  const EMAILJS_PUBLIC_KEY  = 'Doxfy_aEuiIpxao3F';
+  const EMAILJS_SERVICE_ID  = 'service_eujhue6';
+  const EMAILJS_TEMPLATE_ID = 'template_r2wt6ar';
+  // ────────────────────────────────────────────────────────────────
+
+  const result = JSON.parse(localStorage.getItem('dq_result') || 'null');
+  if (!result) window.location.href = '../index.html';
+
+  const { name, email, topic, topicIcon, score, total, time, answers } = result;
+  const pct = Math.round((score / total) * 100);
+
+  document.getElementById('heroName').textContent = name;
+  document.getElementById('statCorrect').textContent = score;
+  document.getElementById('statWrong').textContent = total - score;
+  document.getElementById('statPct').textContent = pct + '%';
+  document.getElementById('statTime').textContent = time;
+  document.getElementById('ringScore').textContent = score;
+
+  let emoji, verdict, sub;
+  if (pct >= 90) { emoji='🏆'; verdict='Legendary!'; sub="You're basically a compiler. Perfect score territory!"; }
+  else if (pct >= 70) { emoji='🔥'; verdict='Solid Dev!'; sub="Strong performance. You clearly know your stuff."; }
+  else if (pct >= 50) { emoji='⚡'; verdict='Getting There!'; sub="Not bad! A bit more practice and you'll crush it."; }
+  else { emoji='💡'; verdict='Keep Learning!'; sub="Every expert was once a beginner. Keep going!"; document.getElementById('ringFill').classList.add('danger'); document.getElementById('ringScore').classList.add('danger'); }
+
+  document.getElementById('resultEmoji').textContent = emoji;
+  document.getElementById('verdictText').textContent = verdict;
+  document.getElementById('verdictSub').textContent = sub;
+
+  setTimeout(() => {
+    const offset = 440 - (pct / 100) * 440;
+    document.getElementById('ringFill').style.strokeDashoffset = offset;
+  }, 300);
+
+  // Render answers
+  answers.forEach((a, i) => {
+    const cls = a.selected.includes('TIME') ? 'timeout' : (a.isCorrect ? 'correct' : 'wrong');
+    const icon = a.selected.includes('TIME') ? '⏱️' : (a.isCorrect ? '✅' : '❌');
+    const div = document.createElement('div');
+    div.className = `answer-item ${cls}`;
+    div.innerHTML = `
+      <div class="a-header">
+        <div class="a-icon">${icon}</div>
+        <div class="a-question">Q${i+1}. ${a.question}</div>
+      </div>
+      <div class="a-answers">
+        <div class="a-yours">Your answer: <span class="${a.isCorrect?'':'a-wrong'}">${a.selected}</span></div>
+        ${!a.isCorrect ? `<div class="a-right-ans">✓ Correct: ${a.correct}</div>` : ''}
+      </div>`;
+    document.getElementById('answersList').appendChild(div);
+  });
+
+  // Confetti
+  if (pct >= 50) {
+    setTimeout(() => {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+      const colors = ['#00ffe0','#ff2d78','#ffe600','#00ff88','#ffffff'];
+      const particles = Array.from({length:120}, () => ({
+        x: Math.random()*canvas.width, y: -20,
+        vx: (Math.random()-0.5)*4, vy: Math.random()*4+2,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        size: Math.random()*8+4, rotation: Math.random()*360, rotSpeed: (Math.random()-0.5)*6
+      }));
+      let frame = 0;
+      function draw() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        particles.forEach(p => {
+          p.x+=p.vx; p.y+=p.vy; p.vy+=0.1; p.rotation+=p.rotSpeed;
+          ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rotation*Math.PI/180);
+          ctx.fillStyle=p.color; ctx.globalAlpha=Math.max(0,1-frame/180);
+          ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.5); ctx.restore();
+        });
+        frame++;
+        if (frame<200) requestAnimationFrame(draw); else ctx.clearRect(0,0,canvas.width,canvas.height);
+      }
+      draw();
+    }, 600);
+  }
+
+  // Send email
+  async function sendEmail() {
+    const badge = document.getElementById('emailBadge');
+    const txt = document.getElementById('emailText');
+    if (EMAILJS_PUBLIC_KEY === 'YOUR_PUBLIC_KEY') {
+      badge.className = 'email-badge failed';
+      txt.textContent = '⚠️ Add your EmailJS keys to result.html to enable emails';
+      return;
+    }
+    const answerSheet = answers.map((a,i) =>
+      `Q${i+1}: ${a.question}\nYour answer: ${a.selected} | Correct: ${a.correct} | ${a.isCorrect?'✅':'❌'}`
+    ).join('\n\n');
+    try {
+      emailjs.init(EMAILJS_PUBLIC_KEY);
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_name: name, to_email: email,
+        topic: (topicIcon||'') + ' ' + topic,
+        score: `${score} / ${total}`, percentage: pct + '%',
+        time_taken: time, date: result.date, verdict,
+        answer_sheet: answerSheet,
+        passed: pct >= 60 ? 'PASSED ✅' : 'NEEDS IMPROVEMENT ❌'
+      });
+      badge.className = 'email-badge sent';
+      txt.textContent = `✅ Results sent to ${email}`;
+    } catch(err) {
+      badge.className = 'email-badge failed';
+      txt.textContent = '⚠️ Email failed — check your EmailJS config';
+      console.error(err);
+    }
+  }
+
+  setTimeout(sendEmail, 1200);
+
+  function retryQuiz() {
+    localStorage.removeItem('dq_topic');
+    localStorage.removeItem('dq_result');
+    window.location.href = 'topics.html';
+  }
+</script>
+</body>
+</html>
